@@ -39,3 +39,4 @@ pnpm-debug.log*
 # Database & Persistent Volumes
 infrastructure/postgres_data/
 *.log
+

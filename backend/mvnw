@@ -6,3 +6,4 @@ if [ -f "$MAVEN_CMD" ]; then
 else
     exec mvn "$@"
 fi
+

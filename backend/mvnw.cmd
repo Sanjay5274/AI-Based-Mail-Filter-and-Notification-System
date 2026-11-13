@@ -19,3 +19,4 @@ if exist "%MAVEN_CMD%" (
         exit /b 1
     )
 )
+

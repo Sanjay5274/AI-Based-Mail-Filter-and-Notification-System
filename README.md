@@ -10,86 +10,222 @@
 
 ---
 
-## 2. Core Features
+## 2. Technology Stack
 
-- **Multi-Account Gmail Connection:** Connect one or more Gmail accounts securely via Google OAuth 2.0 with minimal read-only permissions (`gmail.readonly`).
-- **Encrypted Credentials at Rest:** Refresh tokens encrypted with AES-256-GCM, unique nonces, authentication tags, and Additional Authenticated Data (AAD).
-- **Two-Stage Intelligence Pipeline:**
-  - **Stage A (Global AI Classification):** Multi-label classification across 11 canonical built-in categories with structured entity extraction and concise summaries.
-  - **Stage B (User-Specific Matching Engine):** Evaluates emails against the owning user's enabled preferences and private custom categories with deterministic scoring.
-- **Consolidated Single-Notification Events:** Multiple category matches trigger exactly **one consolidated alert**, eliminating duplicate SMS notifications.
-- **Lease-Based Persistent Background Processing:** PostgreSQL-backed durable job queue utilizing `FOR UPDATE SKIP LOCKED` and time-bounded leases. Zero external message broker dependencies (no RabbitMQ/Kafka in MVP).
-- **Crash Recovery & Retry Backoff:** Automatic reclamation of abandoned jobs upon container restart, paired with exponential backoff and randomized jitter.
-- **Privacy-First Data Architecture:** No storage of raw AI prompts or full LLM response dumps. Configurable retention periods for email body content.
-- **Modern SaaS Dashboard:** Built with Next.js 14, TypeScript, Tailwind CSS, and shadcn/ui.
-
----
-
-## 3. Technology Stack
-
-| Layer | Technology |
-|---|---|
-| **Backend Runtime** | Java 21 (LTS) |
-| **Backend Framework** | Spring Boot 3.3+ (Modular Monolith) |
-| **Security** | Spring Security + Stateless JWT (HttpOnly Cookies) + Persistent Session Rotation |
-| **Database & Migrations** | PostgreSQL 15+ & Flyway (`V1` to `V15` sequential migrations) |
-| **AI Integration** | Spring AI with Google Gemini (`gemini-1.5-flash` / `gemini-1.5-pro`) |
-| **Email Integration** | Google Gmail API v1 (Google OAuth 2.0, Gmail History API) |
-| **Background Processing**| PostgreSQL Queue (`FOR UPDATE SKIP LOCKED`) + `ThreadPoolTaskExecutor` |
-| **Notification Engine** | SMS via Twilio / Indian DLT Provider (MSG91 / Fast2SMS) |
-| **Frontend Framework** | Next.js 14+ (App Router) + TypeScript |
-| **UI Components** | Tailwind CSS + shadcn/ui + Lucide Icons |
-| **Containerization** | Docker & Docker Compose |
+| Layer | Technology | Version | Description |
+|---|---|---|---|
+| **Backend Runtime** | Java | 21 (LTS) | Modern LTS Java runtime with virtual threads |
+| **Backend Framework** | Spring Boot | 3.4.3 | Modular Monolith architecture |
+| **Security** | Spring Security | 6.4+ | Baseline Actuator security (Stateless JWT in Phase 3) |
+| **Database** | PostgreSQL | 15+ / 18 | Relational database with UUID and JSONB support |
+| **Database Migrations** | Flyway | 10.20+ | Version-controlled schema migrations (`db/migration`) |
+| **Monitoring** | Spring Boot Actuator | 3.4.3 | Health checks (`/actuator/health`) and DB indicator |
+| **Frontend Framework** | Next.js | 14.2+ | React 18 with TypeScript and App Router |
+| **UI & Styling** | Tailwind CSS + Lucide | 3.4+ | Utility-first CSS with Lucide icon library |
+| **Package Manager** | pnpm | 9.14+ | Fast, disk space efficient package manager |
+| **Infrastructure** | Docker Compose | 3.8 | Local containerized PostgreSQL |
 
 ---
 
-## 4. Documentation Index
-
-The complete architectural specifications are documented in the `docs/` directory:
-
-| Document | Description |
-|---|---|
-| [docs/HLD-v2.md](file:///c:/Users/sanja/Desktop/InboxIQ/docs/HLD-v2.md) | High-Level Design: System context, architecture diagram, component overview, technology justifications, and ADRs. |
-| [docs/LLD-v2.md](file:///c:/Users/sanja/Desktop/InboxIQ/docs/LLD-v2.md) | Low-Level Design: `package-by-feature` structure, Java domain models, service signatures, REST API contracts, and JSON schemas. |
-| [docs/DATABASE-v2.md](file:///c:/Users/sanja/Desktop/InboxIQ/docs/DATABASE-v2.md) | Database Architecture: 15 core tables, ER diagram, partial unique indexes, check constraints, Flyway migration order, and JSONB schemas. |
-| [docs/SECURITY-v2.md](file:///c:/Users/sanja/Desktop/InboxIQ/docs/SECURITY-v2.md) | Security Specification: Dual-auth separation, AES-256-GCM token encryption, prompt injection defense, CSRF/CORS, and retention. |
-| [docs/API-v2.md](file:///c:/Users/sanja/Desktop/InboxIQ/docs/API-v2.md) | REST API Contracts: Complete endpoint catalog, request/response DTOs, query parameters, error responses, and ownership rules. |
-| [docs/GMAIL-INTEGRATION-v2.md](file:///c:/Users/sanja/Desktop/InboxIQ/docs/GMAIL-INTEGRATION-v2.md) | Gmail Integration: OAuth 2.0 flow, incremental sync via History API, token revocation, deduplication, and post-MVP Pub/Sub design. |
-| [docs/AI-PIPELINE-v2.md](file:///c:/Users/sanja/Desktop/InboxIQ/docs/AI-PIPELINE-v2.md) | AI Intelligence Pipeline: Spring AI abstraction, preprocessing, prompt templates, output validation, and versioning. |
-| [docs/BACKGROUND-PROCESSING-v2.md](file:///c:/Users/sanja/Desktop/InboxIQ/docs/BACKGROUND-PROCESSING-v2.md) | Background Jobs: Persistent queue, lease management, worker pools, retry backoff, crash recovery, and Cloud Run execution. |
-| [docs/IMPLEMENTATION-ROADMAP-v2.md](file:///c:/Users/sanja/Desktop/InboxIQ/docs/IMPLEMENTATION-ROADMAP-v2.md) | Implementation Roadmap: Detailed 10-phase engineering plan from foundation to production readiness. |
-
-### Architectural Diagrams (`docs/diagrams/`)
-- [system-architecture.mmd](file:///c:/Users/sanja/Desktop/InboxIQ/docs/diagrams/system-architecture.mmd)
-- [database-erd.mmd](file:///c:/Users/sanja/Desktop/InboxIQ/docs/diagrams/database-erd.mmd)
-- [email-processing-flow.mmd](file:///c:/Users/sanja/Desktop/InboxIQ/docs/diagrams/email-processing-flow.mmd)
-- [authentication-flow.mmd](file:///c:/Users/sanja/Desktop/InboxIQ/docs/diagrams/authentication-flow.mmd)
-- [gmail-oauth-flow.mmd](file:///c:/Users/sanja/Desktop/InboxIQ/docs/diagrams/gmail-oauth-flow.mmd)
-- [notification-flow.mmd](file:///c:/Users/sanja/Desktop/InboxIQ/docs/diagrams/notification-flow.mmd)
-- [background-job-lifecycle.mmd](file:///c:/Users/sanja/Desktop/InboxIQ/docs/diagrams/background-job-lifecycle.mmd)
-
----
-
-## 5. Implementation Roadmap Summary
+## 3. Monorepo Repository Structure
 
 ```text
-Phase 1: Project Foundation (Monorepo, Docker Compose, Spring Boot & Next.js Bootstrap)
-Phase 2: Database Architecture (All 15 Flyway Migrations V1-V15, Schema Validation)
-Phase 3: Authentication & Gmail Integration (JWT, Refresh Rotation, Google OAuth, AES-256-GCM)
-Phase 4: Email Processing Infrastructure (PostgreSQL Lease Queue, Workers, Recovery Daemon)
-Phase 5: AI Intelligence & Classification (Spring AI + Gemini, Schema Validation, Versioning)
-Phase 6: Categories & Matching Engine (11 System Categories, Custom Categories, Scoring Engine)
-Phase 7: Notification System (Deduplicated Single-Event Alerts, Twilio/DLT SMS Dispatch)
-Phase 8: Frontend SaaS Dashboard (Next.js 14, Smart Inbox, Settings, Analytics)
-Phase 9: Advanced Gmail Push Synchronization (Google Cloud Pub/Sub, History API, Watch Renewal)
-Phase 10: Production Readiness (E2E Testing, Security Audit, Query Tuning, Cloud Run Deployment)
+inboxiq/
+├── backend/                               # Spring Boot 3.4+ (Java 21)
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/com/inboxiq/
+│   │   │   │   ├── InboxIqApplication.java
+│   │   │   │   ├── config/               # Security & App Configuration
+│   │   │   │   ├── common/               # Shared Utilities & Exceptions
+│   │   │   │   ├── security/             # JWT & Authentication Filters
+│   │   │   │   ├── auth/                 # User Auth & Session Domain
+│   │   │   │   ├── user/                 # User Management Domain
+│   │   │   │   ├── account/              # Connected Accounts (Gmail OAuth)
+│   │   │   │   ├── email/                # Email Storage & Sync Domain
+│   │   │   │   ├── category/             # Categories & Preferences Domain
+│   │   │   │   ├── classification/       # Email Classification Domain
+│   │   │   │   ├── matching/             # User Matching Engine Domain
+│   │   │   │   ├── notification/         # Notification & SMS Domain
+│   │   │   │   ├── processing/           # Background Job Queue Domain
+│   │   │   │   └── ai/                   # Spring AI & Gemini Integration
+│   │   │   └── resources/
+│   │   │       ├── application.yml
+│   │   │       ├── application-dev.yml
+│   │   │       └── db/migration/
+│   │   │           └── V1__init_schema.sql
+│   │   └── test/
+│   │       └── java/com/inboxiq/
+│   │           └── InboxIqApplicationTests.java
+│   ├── pom.xml
+│   └── mvnw.cmd
+│
+├── frontend/                              # Next.js 14+ (TypeScript, Tailwind)
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── globals.css
+│   │   │   ├── layout.tsx
+│   │   │   └── page.tsx
+│   │   ├── components/                   # Reusable UI Components
+│   │   ├── lib/                          # Utility Functions (`utils.ts`)
+│   │   ├── services/                     # API Client Services
+│   │   ├── hooks/                        # Custom React Hooks
+│   │   └── types/                        # TypeScript Interfaces
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── tailwind.config.ts
+│   └── postcss.config.mjs
+│
+├── infrastructure/                        # Database Infrastructure
+│   ├── docker-compose.yml                # Docker PostgreSQL Service
+│   └── postgres_data/                    # Local persistent storage
+│
+├── docs/                                 # Architectural Specifications
+│   ├── HLD-v2.md
+│   ├── LLD-v2.md
+│   ├── DATABASE-v2.md
+│   ├── SECURITY-v2.md
+│   ├── API-v2.md
+│   ├── GMAIL-INTEGRATION-v2.md
+│   ├── AI-PIPELINE-v2.md
+│   ├── BACKGROUND-PROCESSING-v2.md
+│   ├── IMPLEMENTATION-ROADMAP-v2.md
+│   └── diagrams/                         # Mermaid Architecture Diagrams
+│
+├── .env.example                          # Environment Variables Template
+├── .gitignore
+└── README.md
 ```
 
 ---
 
-## 6. Current Project State
+## 4. Prerequisites
 
-> ⚠️ **Status: Architecture & Design Approved Baseline**
+- **Java Development Kit (JDK):** Version 21 (LTS)
+- **Node.js:** Version 18+ or 20+ (Verified on v22.13.1)
+- **Package Manager:** `pnpm` (v9.14+) or `npm` (v10.9+)
+- **Database:** Docker & Docker Compose OR Local PostgreSQL 15+ / 18
+
+---
+
+## 5. Local Setup & Execution Guide
+
+### 5.1 Environment Configuration
+Copy the template configuration file:
+```bash
+cp .env.example .env
+```
+*(On Windows PowerShell: `Copy-Item .env.example .env`)*
+
+---
+
+### 5.2 Starting PostgreSQL Database
+
+#### Option A: Using Docker Compose (Recommended if Docker is installed)
+```bash
+docker-compose -f infrastructure/docker-compose.yml up -d
+```
+Verify the container is healthy:
+```bash
+docker-compose -f infrastructure/docker-compose.yml ps
+```
+
+#### Option B: Using Local PostgreSQL (Windows)
+If running PostgreSQL natively on Windows without Docker:
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\postgres.exe" -D "c:\Users\sanja\Desktop\InboxIQ\infrastructure\postgres_data" -p 5433
+```
+Create the database:
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\createdb.exe" -h 127.0.0.1 -p 5433 -U inboxiq_user inboxiq
+```
+
+---
+
+### 5.3 Running the Backend (Spring Boot 3.4+)
+
+Navigate to the `backend/` directory:
+```bash
+cd backend
+```
+Compile and verify tests:
+```bash
+.\mvnw.cmd test
+```
+Start the Spring Boot server:
+```bash
+.\mvnw.cmd spring-boot:run
+```
+The backend starts on port **8081** (to avoid conflicts with standard local services like Jenkins).
+
+#### Verify Backend & Database Health
+Open your browser or run:
+```bash
+curl http://localhost:8081/actuator/health
+```
+Expected response:
+```json
+{
+  "status": "UP",
+  "components": {
+    "db": {
+      "status": "UP",
+      "details": {
+        "database": "PostgreSQL",
+        "validationQuery": "isValid()"
+      }
+    },
+    "diskSpace": {
+      "status": "UP"
+    },
+    "ping": {
+      "status": "UP"
+    }
+  }
+}
+```
+
+---
+
+### 5.4 Running the Frontend (Next.js 14+)
+
+Navigate to the `frontend/` directory:
+```bash
+cd frontend
+```
+Install dependencies (if not already installed):
+```bash
+pnpm install
+```
+Build the production bundle:
+```bash
+pnpm run build
+```
+Start the development server:
+```bash
+pnpm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
+
+## 6. Phase 1 Verification Results
+
+| Validation Step | Test Command | Result | Details |
+|---|---|---|---|
+| **1. Java 21 Toolchain** | `java -version` | **PASS** | Java 21.0.12 LTS verified |
+| **2. Maven Backend Build** | `mvnw.cmd compile` | **PASS** | Java 21 compiled with 0 errors |
+| **3. Database Cluster** | `initdb.exe` + `postgres.exe` | **PASS** | PostgreSQL 18 cluster initialized |
+| **4. Database Connection** | `psql -h 127.0.0.1 -p 5433` | **PASS** | `inboxiq` database active & accessible |
+| **5. Flyway Migrations** | `mvnw.cmd test` | **PASS** | `V1__init_schema.sql` applied successfully |
+| **6. Spring Boot Context** | `mvnw.cmd test` | **PASS** | JPA EntityManager & context loaded cleanly |
+| **7. Actuator Health Probe** | `GET /actuator/health` | **PASS** | `{"status": "UP", "components": {"db": "UP"}}` |
+| **8. Next.js Frontend Build** | `pnpm run build` | **PASS** | Static generation & TypeScript build clean |
+
+---
+
+## 7. Current Status & Next Steps
+
+> ✅ **Phase 1 (Project Foundation Setup) is COMPLETE.**
 > 
-> The architecture documentation has been fully reconciled and updated with all 20 architectural corrections. No production application code or database migrations have been generated yet, awaiting formal human approval of this baseline before commencing Phase 1.
-
+> Awaiting review and approval before proceeding to **Phase 2: Database Architecture & Domain Migrations** (authoring all Flyway migrations V1–V15 and schema validation).

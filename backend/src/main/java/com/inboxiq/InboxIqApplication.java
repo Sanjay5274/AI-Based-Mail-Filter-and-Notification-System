@@ -10,3 +10,4 @@ public class InboxIqApplication {
         SpringApplication.run(InboxIqApplication.class, args);
     }
 }
+
