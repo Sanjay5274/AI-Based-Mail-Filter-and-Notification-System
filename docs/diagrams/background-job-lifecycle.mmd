@@ -1,0 +1,28 @@
+stateDiagram-v2
+    [*] --> PENDING : Job Enqueued (Idempotency Key Checked)
+
+    state PENDING {
+        [*] --> WaitingForDispatcher
+        WaitingForDispatcher : Eligible when next_retry_at <= NOW()
+    }
+
+    PENDING --> PROCESSING : Claimed via FOR UPDATE SKIP LOCKED\n(Set locked_by, locked_until=NOW()+5m, started_at=NOW())
+
+    state PROCESSING {
+        direction LR
+        ExecuteTask : Execute Work Outside DB TX\n(Spring AI / Gmail API / Matching / SMS)
+        RenewLease : Optional Lease Renewal\n(locked_until += 5m for long jobs)
+        ExecuteTask --> RenewLease
+    }
+
+    PROCESSING --> COMPLETED : Execution Success\n(Set completed_at=NOW(), clear lease)
+    COMPLETED --> [*]
+
+    PROCESSING --> RETRY_WAIT : Transient Error\n(retry_count < max_retries)\nSet next_retry_at = NOW() + (2^retries + jitter) min
+    RETRY_WAIT --> PENDING : Timer Expires\n(next_retry_at <= NOW())
+
+    PROCESSING --> DEAD : Permanent Error OR\n(retry_count >= max_retries)
+    DEAD --> [*] : Alert SRE / Admin Review
+
+    PROCESSING --> PENDING : Lease Expired Recovery\n(@Scheduled Recovery: locked_until < NOW())\nReset locked_by=NULL, status='PENDING'
+

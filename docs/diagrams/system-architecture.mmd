@@ -1,0 +1,80 @@
+flowchart TD
+    subgraph Client["Client Layer"]
+        UI["Next.js 14+ Frontend (Vercel / Web Browser)"]
+    end
+
+    subgraph ExternalAuth["External Identity & Auth"]
+        GoogleOAuth["Google OAuth 2.0 Consent & Token Service"]
+    end
+
+    subgraph BackendApp["InboxIQ Modular Monolith (Java 21 / Spring Boot)"]
+        direction TB
+
+        subgraph Ingress["Web & Ingress Controllers"]
+            AuthController["AuthController (/api/v1/auth)"]
+            AccountController["AccountController (/api/v1/accounts)"]
+            EmailController["EmailController (/api/v1/emails)"]
+            CategoryController["CategoryController (/api/v1/categories)"]
+            NotificationController["NotificationController (/api/v1/notifications)"]
+            AnalyticsController["AnalyticsController (/api/v1/analytics)"]
+            WebhookController["WebhookController (/api/v1/webhooks)"]
+        end
+
+        subgraph SecurityFilter["Security & Auth Filter"]
+            JwtFilter["JwtAuthenticationFilter (Access Token 15m)"]
+            CsrfFilter["CsrfValidationFilter / Origin Check"]
+            AuthService["AuthService & RefreshTokenRotation"]
+        end
+
+        subgraph DomainServices["Core Domain Services"]
+            GmailSyncService["GmailSyncService (History API)"]
+            TokenEncryption["TokenEncryptionService (AES-256-GCM + AAD)"]
+            JobDispatcherService["JobDispatcherService (@Scheduled + Cloud Scheduler)"]
+            JobWorkerService["JobWorkerService (Lease Manager & ThreadPool)"]
+            AiClassificationService["AiClassificationService (Spring AI)"]
+            MatchingEngineService["MatchingEngineService (User Preference Matcher)"]
+            NotificationService["NotificationService (Event Deduplication)"]
+            SmsProviderService["SmsProviderService (Twilio / Indian DLT Provider)"]
+        end
+    end
+
+    subgraph Database["PostgreSQL 15+ (Cloud SQL / Managed Instance)"]
+        direction TB
+        UsersTable["users & auth_sessions"]
+        AccountsTable["connected_accounts"]
+        EmailsTable["emails & email_attachments"]
+        CategoriesTable["categories (System & Custom)"]
+        PrefsTable["user_category_preferences & notification_preferences"]
+        ClassificationsTable["email_classifications (1:N, is_current partial unique)"]
+        MatchesTable["email_category_matches"]
+        NotificationsTable["notifications & notification_deliveries"]
+        JobsTable["processing_jobs (FOR UPDATE SKIP LOCKED) & processing_attempts"]
+    end
+
+    subgraph ExternalServices["External APIs & Providers"]
+        GmailAPI["Google Gmail API v1 (gmail.readonly)"]
+        GeminiAPI["Google Gemini 1.5 Pro / Flash via Spring AI"]
+        SmsGateway["SMS Gateway (Twilio / MSG91 DLT)"]
+    end
+
+    %% Client Interactions
+    UI -->|HTTPS + HttpOnly Cookies| SecurityFilter
+    SecurityFilter --> Ingress
+    Ingress --> DomainServices
+
+    %% External Auth Flow
+    UI -.->|OAuth Redirect| GoogleOAuth
+    GoogleOAuth -.->|Authorization Code| Ingress
+
+    %% Service to DB
+    DomainServices --> Database
+
+    %% Service to External
+    GmailSyncService -->|OAuth Token| GmailAPI
+    AiClassificationService -->|Prompt (Untrusted Data Bound)| GeminiAPI
+    SmsProviderService -->|HTTP REST| SmsGateway
+
+    %% Background Processing Loop
+    JobDispatcherService -->|Lease Claim FOR UPDATE SKIP LOCKED| JobsTable
+    JobWorkerService -->|Execute outside DB TX| DomainServices
+

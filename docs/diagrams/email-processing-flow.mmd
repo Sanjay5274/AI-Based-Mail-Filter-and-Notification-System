@@ -1,0 +1,50 @@
+sequenceDiagram
+    autonumber
+    participant Gmail as Gmail API
+    participant Sync as GmailSyncService
+    participant DB as PostgreSQL
+    participant Dispatcher as JobDispatcherService
+    participant Worker as JobWorkerService
+    participant AI as AiClassificationService (Gemini)
+    participant Matcher as MatchingEngineService
+    participant Notif as NotificationService
+    participant SMS as SmsProviderService (Twilio / DLT)
+
+    Note over Gmail,Sync: Ingestion & Initial Persistence
+    Sync->>Gmail: GET /history or /messages (using decrypted OAuth token)
+    Gmail-->>Sync: Message Payload (Headers, Body, Snippet, Metadata)
+    Sync->>DB: INSERT INTO emails ON CONFLICT (connected_account_id, gmail_message_id) DO NOTHING
+    Sync->>DB: INSERT INTO processing_jobs (type='CLASSIFY_EMAIL', target_id=email_id, status='PENDING')
+    
+    Note over Dispatcher,Worker: Lease-Based Job Dispatching
+    Dispatcher->>DB: SELECT * FROM processing_jobs WHERE status IN ('PENDING','RETRY_WAIT') AND next_retry_at <= NOW() FOR UPDATE SKIP LOCKED LIMIT 10
+    Dispatcher->>DB: UPDATE processing_jobs SET status='PROCESSING', locked_by='worker-1', locked_until=NOW()+5m
+    Dispatcher->>Worker: Enqueue job in bounded in-memory queue (Capacity: 50)
+    
+    Note over Worker,AI: Stage A: Global Classification (Outside DB TX)
+    Worker->>DB: Fetch email body_text, subject, sender
+    Worker->>AI: Send prompt with truncated body & safe delimiters
+    AI-->>Worker: Validated Structured JSON (Categories, Summary, Priority, ExtractedData)
+    Worker->>DB: INSERT INTO email_classifications (is_current=true)
+    Worker->>DB: INSERT INTO email_classification_categories (confidence_scores)
+    Worker->>DB: UPDATE processing_jobs SET status='COMPLETED' (CLASSIFY_EMAIL)
+    Worker->>DB: INSERT INTO processing_jobs (type='MATCH_EMAIL', target_id=email_id, status='PENDING')
+
+    Note over Worker,Matcher: Stage B: User-Specific Matching Engine
+    Worker->>DB: Claim MATCH_EMAIL job with lease
+    Worker->>DB: Get connected_account owner (user_id)
+    Worker->>DB: Query user's enabled category preferences & custom categories
+    Matcher->>Matcher: Calculate relevance score (0-100) per category (built-in + private custom)
+    Matcher->>DB: INSERT INTO email_category_matches (relevance_score, is_matched)
+    
+    Note over Worker,SMS: Stage C: Notification & Delivery
+    alt Any match >= user threshold & notification enabled
+        Worker->>Notif: Create single notification event
+        Notif->>DB: INSERT INTO notifications (idempotency_key="NOTIF:user_id:email_id")
+        Notif->>DB: INSERT INTO notification_deliveries (channel='SMS', status='PENDING')
+        Worker->>SMS: Dispatch SMS with idempotency header
+        SMS-->>Worker: Provider Response (Message SID / Status)
+        Worker->>DB: UPDATE notification_deliveries SET status='SENT', provider_message_id=SID
+    end
+    Worker->>DB: UPDATE processing_jobs SET status='COMPLETED' (MATCH_EMAIL)
+

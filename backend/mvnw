@@ -1,0 +1,8 @@
+#!/bin/sh
+export JAVA_HOME="/c/Program Files/Java/jdk-21.0.12"
+MAVEN_CMD="/c/Users/sanja/.m2/wrapper/dists/apache-maven-3.9.9-bin/33b4b2b4/apache-maven-3.9.9/bin/mvn"
+if [ -f "$MAVEN_CMD" ]; then
+    exec "$MAVEN_CMD" "$@"
+else
+    exec mvn "$@"
+fi

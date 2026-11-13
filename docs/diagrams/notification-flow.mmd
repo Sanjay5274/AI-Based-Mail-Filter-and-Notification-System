@@ -1,0 +1,41 @@
+sequenceDiagram
+    autonumber
+    participant Engine as MatchingEngineService
+    participant NotifService as NotificationService
+    participant DB as PostgreSQL
+    participant SMS as SmsProvider (Twilio / DLT)
+    participant Webhook as WebhookController
+
+    Note over Engine,NotifService: 1. Evaluate Matches & Deduplicate Event
+    Engine->>NotifService: processMatches(emailId, userId, List<MatchedCategory>)
+    NotifService->>DB: Check notification_preferences (sms_enabled, min_score, quiet_hours)
+    NotifService->>NotifService: Generate idempotency_key = "NOTIF:" + userId + ":" + emailId
+    NotifService->>DB: INSERT INTO notifications (user_id, email_id, matched_category_ids, max_relevance_score, idempotency_key) ON CONFLICT (idempotency_key) DO NOTHING
+    
+    alt Notification record inserted (First time)
+        NotifService->>DB: INSERT INTO notification_deliveries (notification_id, channel='SMS', provider='TWILIO', recipient_address=phone, status='PENDING', idempotency_key="DELIV:SMS:"+notification_id)
+        NotifService->>SMS: sendSms(toNumber, formattedMessage, idempotencyKey)
+        
+        alt SMS Sent successfully
+            SMS-->>NotifService: HTTP 201 Created (Message SID: SM12345, Status: 'queued')
+            NotifService->>DB: UPDATE notification_deliveries SET status='SENT', provider_message_id='SM12345', sent_at=NOW()
+        else Network Timeout / Ambiguous
+            NotifService->>DB: UPDATE notification_deliveries SET status='PENDING', failure_code='TIMEOUT_AMBIGUOUS'
+            Note over NotifService: Reconcile before retrying (avoid duplicate SMS!)
+        end
+    else Duplicate detected
+        NotifService-->>Engine: Notification already dispatched for this email and user. Skip duplicate SMS.
+    end
+
+    Note over Webhook,DB: 2. Webhook Callback & Status Update
+    SMS->>Webhook: POST /api/v1/webhooks/sms/status-callback (Payload + Signature Header)
+    Webhook->>Webhook: Verify Provider Signature (e.g., X-Twilio-Signature with AuthToken)
+    alt Signature Valid
+        Webhook->>DB: SELECT * FROM notification_deliveries WHERE provider_message_id = 'SM12345'
+        Webhook->>Webhook: Check state transition ordering (DELIVERED > SENT > PENDING)
+        Webhook->>DB: UPDATE notification_deliveries SET status='DELIVERED', delivered_at=NOW()
+        Webhook-->>SMS: 200 OK
+    else Invalid Signature
+        Webhook-->>SMS: 401 Unauthorized
+    end
+

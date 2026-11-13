@@ -1,0 +1,257 @@
+erDiagram
+    users ||--o{ auth_sessions : "has sessions"
+    users ||--o{ connected_accounts : "owns"
+    users ||--o{ categories : "owns custom"
+    users ||--o{ user_category_preferences : "configures"
+    users ||--o| notification_preferences : "sets"
+    users ||--o{ email_category_matches : "evaluates"
+    users ||--o{ notifications : "receives"
+
+    connected_accounts ||--o{ emails : "contains"
+
+    emails ||--o{ email_attachments : "has"
+    emails ||--o{ email_classifications : "has versioned"
+    emails ||--o{ email_category_matches : "matched against"
+    emails ||--o{ notifications : "triggers"
+
+    categories ||--o{ user_category_preferences : "referenced by"
+    categories ||--o{ email_classification_categories : "classified into"
+    categories ||--o{ email_category_matches : "matched with"
+
+    email_classifications ||--o{ email_classification_categories : "contains"
+
+    notifications ||--o{ notification_deliveries : "dispatches across"
+
+    processing_jobs ||--o{ processing_attempts : "logs execution"
+
+    users {
+        uuid id PK
+        varchar email UK
+        varchar password_hash
+        varchar full_name
+        varchar phone_number
+        boolean phone_verified
+        boolean is_active
+        boolean email_verified
+        timestamptz last_login_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    auth_sessions {
+        uuid id PK
+        uuid user_id FK
+        varchar token_hash UK
+        uuid token_family_id
+        timestamptz expires_at
+        timestamptz revoked_at
+        uuid replaced_by_token_id
+        varchar ip_address
+        varchar user_agent
+        timestamptz created_at
+        timestamptz last_used_at
+    }
+
+    connected_accounts {
+        uuid id PK
+        uuid user_id FK
+        varchar provider
+        varchar provider_account_id
+        varchar email_address
+        varchar display_name
+        text refresh_token_ciphertext
+        varchar encryption_key_version
+        varchar nonce_iv
+        varchar auth_tag
+        text[] scopes
+        varchar sync_status
+        timestamptz last_sync_at
+        varchar last_history_id
+        boolean is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    emails {
+        uuid id PK
+        uuid connected_account_id FK
+        uuid user_id FK
+        varchar gmail_message_id
+        varchar gmail_thread_id
+        text subject
+        varchar sender_name
+        varchar sender_email
+        text[] recipient_emails
+        timestamptz received_at
+        text body_text
+        text body_html
+        varchar snippet
+        text[] label_ids
+        boolean has_attachments
+        boolean is_read
+        integer raw_size_estimate
+        timestamptz synced_at
+        timestamptz body_retention_until
+        timestamptz created_at
+    }
+
+    email_attachments {
+        uuid id PK
+        uuid email_id FK
+        varchar attachment_id
+        varchar filename
+        varchar mime_type
+        integer size_bytes
+        timestamptz created_at
+    }
+
+    categories {
+        uuid id PK
+        varchar name
+        varchar slug
+        text description
+        boolean is_system
+        uuid owner_user_id FK
+        varchar icon
+        varchar color
+        integer display_order
+        boolean is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    user_category_preferences {
+        uuid id PK
+        uuid user_id FK
+        uuid category_id FK
+        boolean is_enabled
+        integer min_relevance_score
+        varchar priority
+        boolean notify_via_sms
+        boolean notify_via_email
+        jsonb preferences_data
+        text[] keywords_include
+        text[] keywords_exclude
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    notification_preferences {
+        uuid id PK
+        uuid user_id FK
+        boolean sms_enabled
+        varchar sms_number
+        boolean email_enabled
+        varchar notification_email
+        integer global_min_relevance_score
+        boolean quiet_hours_enabled
+        time quiet_hours_start
+        time quiet_hours_end
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    email_classifications {
+        uuid id PK
+        uuid email_id FK
+        varchar model_provider
+        varchar model_name
+        varchar model_version
+        varchar prompt_version
+        varchar classification_status
+        text ai_summary
+        varchar priority
+        boolean is_spam
+        jsonb extracted_data
+        boolean is_current
+        integer processing_duration_ms
+        timestamptz classified_at
+        timestamptz created_at
+    }
+
+    email_classification_categories {
+        uuid id PK
+        uuid classification_id FK
+        uuid category_id FK
+        decimal confidence_score
+        timestamptz created_at
+    }
+
+    email_category_matches {
+        uuid id PK
+        uuid user_id FK
+        uuid email_id FK
+        uuid category_id FK
+        integer relevance_score
+        boolean is_matched
+        text match_explanation
+        jsonb matched_preferences
+        timestamptz processed_at
+        timestamptz created_at
+    }
+
+    notifications {
+        uuid id PK
+        uuid user_id FK
+        uuid email_id FK
+        varchar notification_type
+        uuid[] matched_category_ids
+        integer max_relevance_score
+        varchar title
+        text message
+        varchar idempotency_key UK
+        boolean is_read
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    notification_deliveries {
+        uuid id PK
+        uuid notification_id FK
+        varchar channel
+        varchar provider
+        varchar provider_message_id
+        varchar recipient_address
+        varchar status
+        integer attempt_count
+        varchar idempotency_key UK
+        timestamptz last_attempted_at
+        timestamptz delivered_at
+        varchar failure_code
+        text failure_message
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    processing_jobs {
+        uuid id PK
+        varchar job_type
+        varchar target_type
+        uuid target_id
+        varchar status
+        varchar idempotency_key UK
+        integer retry_count
+        integer max_retries
+        timestamptz next_retry_at
+        varchar locked_by
+        timestamptz locked_until
+        timestamptz started_at
+        timestamptz completed_at
+        text last_error
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    processing_attempts {
+        uuid id PK
+        uuid job_id FK
+        integer attempt_number
+        timestamptz started_at
+        timestamptz completed_at
+        varchar status
+        text error_message
+        text error_sanitized
+        integer duration_ms
+        timestamptz created_at
+    }
+

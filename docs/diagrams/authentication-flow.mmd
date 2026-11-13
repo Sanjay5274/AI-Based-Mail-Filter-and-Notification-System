@@ -1,0 +1,45 @@
+sequenceDiagram
+    autonumber
+    participant Client as Next.js Client
+    participant AuthCtrl as AuthController
+    participant SecFilter as JwtAuthenticationFilter
+    participant AuthService as AuthService
+    participant DB as PostgreSQL (users, auth_sessions)
+
+    Note over Client,DB: User Login Flow
+    Client->>AuthCtrl: POST /api/v1/auth/login {email, password}
+    AuthCtrl->>AuthService: authenticate(email, password)
+    AuthService->>DB: SELECT * FROM users WHERE email = ?
+    AuthService->>AuthService: Verify BCrypt hash (Strength: 12)
+    AuthService->>AuthService: Generate JWT Access Token (15m expiry)
+    AuthService->>AuthService: Generate Opaque Refresh Token + Family ID
+    AuthService->>DB: INSERT INTO auth_sessions (user_id, token_hash=SHA256(rt), token_family_id, expires_at=NOW()+7d)
+    AuthService-->>Client: Set-Cookie: accessToken (HttpOnly, Secure, SameSite) & Set-Cookie: refreshToken (HttpOnly) + CSRF Header
+
+    Note over Client,DB: Authenticated API Request
+    Client->>SecFilter: GET /api/v1/emails (with Cookie: accessToken)
+    SecFilter->>SecFilter: Validate JWT signature & expiry (HMAC-SHA256)
+    SecFilter->>SecFilter: Extract UserPrincipal (userId, email)
+    SecFilter->>Client: Pass to Controller with SecurityContext populated
+
+    Note over Client,DB: Token Refresh Flow with Rotation & Reuse Detection
+    Client->>AuthCtrl: POST /api/v1/auth/refresh (Cookie: refreshToken)
+    AuthCtrl->>AuthService: rotateRefreshToken(rawRefreshToken)
+    AuthService->>AuthService: Compute SHA256(rawRefreshToken)
+    AuthService->>DB: SELECT * FROM auth_sessions WHERE token_hash = ?
+    alt Token already revoked (Token Reuse Detected!)
+        AuthService->>DB: UPDATE auth_sessions SET revoked_at=NOW() WHERE token_family_id = ?
+        AuthService-->>Client: 401 Unauthorized (Security alert: token reuse detected, all sessions revoked)
+    else Token valid & active
+        AuthService->>DB: UPDATE auth_sessions SET revoked_at=NOW(), replaced_by_token_id=new_session_id
+        AuthService->>AuthService: Generate new Access Token + new Refresh Token (same family)
+        AuthService->>DB: INSERT INTO auth_sessions (new_session_id, token_hash=SHA256(new_rt), family_id)
+        AuthService-->>Client: Set-Cookie: new accessToken & new refreshToken
+    end
+
+    Note over Client,DB: Logout Flow
+    Client->>AuthCtrl: POST /api/v1/auth/logout
+    AuthCtrl->>AuthService: revokeSession(refreshToken)
+    AuthService->>DB: UPDATE auth_sessions SET revoked_at=NOW() WHERE token_hash = SHA256(rt)
+    AuthCtrl-->>Client: Clear cookies (accessToken, refreshToken)
+

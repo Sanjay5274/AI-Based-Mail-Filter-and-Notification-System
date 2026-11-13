@@ -1,0 +1,44 @@
+sequenceDiagram
+    autonumber
+    participant Client as Next.js Client
+    participant AccountCtrl as AccountController
+    participant OAuthService as GoogleOAuthService
+    participant CryptoService as TokenEncryptionService
+    participant Google as Google OAuth 2.0 Endpoint
+    participant DB as PostgreSQL (connected_accounts)
+
+    Note over Client,Google: 1. Initiate Google OAuth Connection
+    Client->>AccountCtrl: POST /api/v1/accounts/google/connect (Authenticated UserPrincipal)
+    AccountCtrl->>OAuthService: generateAuthorizationUrl(userId)
+    OAuthService->>OAuthService: Generate secure random state token + PKCE code_verifier
+    OAuthService->>OAuthService: Bind state to userId in secure transient cache (TTL 10m)
+    OAuthService-->>Client: Returns authorizationUrl (scope: gmail.readonly, state, code_challenge)
+    Client->>Google: Redirect user to Google Consent Screen
+
+    Note over Client,Google: 2. Consent & Callback
+    Google-->>Client: Redirect to /api/v1/accounts/google/callback?code=AUTH_CODE&state=STATE
+    Client->>AccountCtrl: GET /api/v1/accounts/google/callback?code=...&state=...
+    AccountCtrl->>OAuthService: handleCallback(code, state, authenticatedUserId)
+    OAuthService->>OAuthService: Validate state exists, unexpired, and matches authenticatedUserId!
+    OAuthService->>Google: POST /token (code, client_id, client_secret, code_verifier)
+    Google-->>OAuthService: Returns {access_token, refresh_token, id_token, expires_in}
+    
+    Note over OAuthService,DB: 3. Token Encryption & Persistence
+    OAuthService->>OAuthService: Extract Google Profile (sub/provider_account_id, email_address)
+    OAuthService->>CryptoService: encryptRefreshToken(rawRefreshToken, accountId, userId)
+    CryptoService->>CryptoService: Generate unique 96-bit random Nonce/IV
+    CryptoService->>CryptoService: AES-256-GCM Encrypt with AAD="accountId:userId:keyVersion"
+    CryptoService-->>OAuthService: Returns {ciphertext, nonce_iv, auth_tag, key_version}
+    OAuthService->>DB: INSERT INTO connected_accounts (user_id, provider_account_id, email_address, refresh_token_ciphertext, nonce_iv, auth_tag, key_version, scopes, sync_status='IDLE')
+    OAuthService-->>Client: 200 OK (Account connected successfully)
+
+    Note over Client,Google: 4. Account Disconnection & Token Revocation
+    Client->>AccountCtrl: DELETE /api/v1/accounts/{accountId} (Authenticated userId)
+    AccountCtrl->>DB: Verify ownership (user_id = principal.id)
+    AccountCtrl->>DB: UPDATE connected_accounts SET is_active=false, sync_status='DISCONNECTING'
+    AccountCtrl->>CryptoService: decryptRefreshToken(ciphertext, nonce_iv, auth_tag, key_version)
+    AccountCtrl->>Google: POST https://oauth2.googleapis.com/revoke?token={refreshToken}
+    Google-->>AccountCtrl: 200 OK (Token Revoked)
+    AccountCtrl->>DB: Clear credentials or soft-delete connected_accounts
+    AccountCtrl-->>Client: 200 OK (Disconnected and revoked)
+
