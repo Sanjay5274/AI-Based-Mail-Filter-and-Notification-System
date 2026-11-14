@@ -9,6 +9,29 @@ server:
   servlet:
     context-path: /
 
+inboxiq:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970337336763979244226452948404D635166546A576E5A7234753778214125442A}
+      access-token-expiration-ms: ${JWT_EXPIRY_MS:900000}
+      refresh-token-expiration-ms: ${REFRESH_TOKEN_EXPIRY_MS:604800000}
+      issuer: inboxiq-api
+    cookie:
+      secure: ${COOKIE_SECURE:false}
+      same-site: Lax
+    cors:
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
+  encryption:
+    token-key: ${TOKEN_ENCRYPTION_KEY:6b5970337336763979244226452948404d635166546a576e5a72347537782141}
+    current-version: ${TOKEN_ENCRYPTION_KEY_VERSION:v1}
+  google:
+    oauth:
+      client-id: ${GOOGLE_CLIENT_ID:inboxiq-dev-client-id.apps.googleusercontent.com}
+      client-secret: ${GOOGLE_CLIENT_SECRET:inboxiq-dev-client-secret}
+      redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8081/api/v1/accounts/google/callback}
+      frontend-redirect-url: ${FRONTEND_REDIRECT_URL:http://localhost:3000/settings?accountConnected=true}
+      scope: https://www.googleapis.com/auth/gmail.readonly
+
 management:
   endpoints:
     web:
