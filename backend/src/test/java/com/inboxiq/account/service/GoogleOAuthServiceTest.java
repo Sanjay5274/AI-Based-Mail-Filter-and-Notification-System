@@ -97,7 +97,7 @@ class GoogleOAuthServiceTest {
                 .thenReturn(Optional.empty());
 
         EncryptedTokenResult encResult = new EncryptedTokenResult("cipherHex", "ivHex", "tagHex", "v1");
-        when(tokenEncryptionService.encrypt(eq("mock-refresh-token"), any(UUID.class), eq(userId)))
+        when(tokenEncryptionService.encrypt(anyString(), any(UUID.class), eq(userId)))
                 .thenReturn(encResult);
 
         when(connectedAccountRepository.save(any(ConnectedAccount.class))).thenAnswer(inv -> {

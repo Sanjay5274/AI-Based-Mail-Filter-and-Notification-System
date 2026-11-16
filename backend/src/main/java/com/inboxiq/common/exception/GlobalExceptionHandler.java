@@ -12,7 +12,6 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -103,6 +102,37 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+
+    @ExceptionHandler(GmailApiException.class)
+    public ResponseEntity<ErrorResponse> handleGmailApiException(GmailApiException ex, HttpServletRequest request) {
+        log.warn("Gmail API error at {}: [{}] {}", request.getRequestURI(), ex.getGmailErrorCode(), ex.getMessage());
+        // Map Gmail-side 429 / 503 to 502/503 on our side; other errors become 502
+        HttpStatus status = switch (ex.getHttpStatus()) {
+            case 429 -> HttpStatus.TOO_MANY_REQUESTS;
+            case 503 -> HttpStatus.SERVICE_UNAVAILABLE;
+            default  -> HttpStatus.BAD_GATEWAY;
+        };
+        ErrorResponse response = new ErrorResponse(
+                status.value(),
+                ex.getGmailErrorCode(),
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(status).body(response);
+    }
+
+    @ExceptionHandler(GoogleCredentialsRevokedException.class)
+    public ResponseEntity<ErrorResponse> handleGoogleCredentialsRevokedException(
+            GoogleCredentialsRevokedException ex, HttpServletRequest request) {
+        log.warn("Google credentials revoked at {}: {}", request.getRequestURI(), ex.getMessage());
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.UNAUTHORIZED.value(),
+                "GOOGLE_CREDENTIALS_REVOKED",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
     @ExceptionHandler(Exception.class)

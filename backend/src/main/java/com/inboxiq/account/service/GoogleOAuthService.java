@@ -186,6 +186,21 @@ public class GoogleOAuthService {
             );
         }
 
+        // Store the initial access token (encrypted) to avoid an immediate refresh on first Gmail call
+        if (tokenResponse.accessToken() != null && !tokenResponse.accessToken().isEmpty()) {
+            long expiresInSeconds = tokenResponse.expiresIn() != null ? tokenResponse.expiresIn() : 3600L;
+            EncryptedTokenResult accessTokenEnc = tokenEncryptionService.encrypt(
+                    tokenResponse.accessToken(), account.getId(), currentUserId
+            );
+            if (accessTokenEnc != null) {
+                account.setAccessTokenCiphertext(accessTokenEnc.ciphertext());
+                account.setAccessTokenKeyVersion(accessTokenEnc.keyVersion());
+                account.setAccessTokenNonceIv(accessTokenEnc.nonceIv());
+                account.setAccessTokenAuthTag(accessTokenEnc.authTag());
+                account.setAccessTokenExpiresAt(java.time.Instant.now().plusSeconds(expiresInSeconds));
+            }
+        }
+
         ConnectedAccount saved = connectedAccountRepository.save(account);
         log.info("Successfully connected Google account {} for user {}", saved.getId(), currentUserId);
         return AccountResponse.fromEntity(saved);

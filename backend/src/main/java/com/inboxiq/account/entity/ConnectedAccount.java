@@ -56,6 +56,22 @@ public class ConnectedAccount implements Persistable<UUID> {
     @Column(name = "last_history_id", length = 100)
     private String lastHistoryId;
 
+    // --- Encrypted access token (nullable: populated on first Gmail API use / refresh) ---
+    @Column(name = "access_token_ciphertext", columnDefinition = "TEXT")
+    private String accessTokenCiphertext;
+
+    @Column(name = "access_token_key_version", length = 50)
+    private String accessTokenKeyVersion;
+
+    @Column(name = "access_token_nonce_iv", length = 64)
+    private String accessTokenNonceIv;
+
+    @Column(name = "access_token_auth_tag", length = 64)
+    private String accessTokenAuthTag;
+
+    @Column(name = "access_token_expires_at")
+    private Instant accessTokenExpiresAt;
+
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
 
@@ -274,5 +290,55 @@ public class ConnectedAccount implements Persistable<UUID> {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getAccessTokenCiphertext() {
+        return accessTokenCiphertext;
+    }
+
+    public void setAccessTokenCiphertext(String accessTokenCiphertext) {
+        this.accessTokenCiphertext = accessTokenCiphertext;
+    }
+
+    public String getAccessTokenKeyVersion() {
+        return accessTokenKeyVersion;
+    }
+
+    public void setAccessTokenKeyVersion(String accessTokenKeyVersion) {
+        this.accessTokenKeyVersion = accessTokenKeyVersion;
+    }
+
+    public String getAccessTokenNonceIv() {
+        return accessTokenNonceIv;
+    }
+
+    public void setAccessTokenNonceIv(String accessTokenNonceIv) {
+        this.accessTokenNonceIv = accessTokenNonceIv;
+    }
+
+    public String getAccessTokenAuthTag() {
+        return accessTokenAuthTag;
+    }
+
+    public void setAccessTokenAuthTag(String accessTokenAuthTag) {
+        this.accessTokenAuthTag = accessTokenAuthTag;
+    }
+
+    public Instant getAccessTokenExpiresAt() {
+        return accessTokenExpiresAt;
+    }
+
+    public void setAccessTokenExpiresAt(Instant accessTokenExpiresAt) {
+        this.accessTokenExpiresAt = accessTokenExpiresAt;
+    }
+
+    /**
+     * Returns true if the stored access token is absent or expires within the given leeway.
+     */
+    public boolean isAccessTokenExpired(java.time.Duration leeway) {
+        if (accessTokenExpiresAt == null || accessTokenCiphertext == null) {
+            return true;
+        }
+        return Instant.now().isAfter(accessTokenExpiresAt.minus(leeway));
     }
 }
